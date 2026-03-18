@@ -1,0 +1,22 @@
+Analyze the following repository and provide a comprehensive report covering:
+
+1. **Architecture Overview** — high-level structure, design patterns, separation of concerns
+2. **Code Quality** — naming conventions, complexity, documentation
+3. **Security Concerns** — potential vulnerabilities, unsafe patterns
+4. **Performance Opportunities** — bottlenecks, inefficiencies
+5. **Dependency Health** — outdated or risky dependencies
+6. **Improvement Roadmap** — prioritized list of actionable recommendations
+
+Repository Statistics:
+{stats}
+
+Top Files by Size:
+{top_files}
+
+Languages Used:
+{languages}
+
+Dependencies:
+{dependencies}
+
+Be specific, actionable, and reference actual files where relevant.

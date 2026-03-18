@@ -1,0 +1,19 @@
+# Core web framework
+fastapi>=0.111.0
+uvicorn>=0.29.0
+python-multipart>=0.0.9
+python-dotenv==1.0.1
+aiofiles==23.2.1
+
+# HTTP client for LLM calls
+aiohttp==3.9.5
+duckduckgo_search==6.1.7
+
+# MCP (Model Context Protocol) server/client library
+mcp>=1.0.0
+
+# Dev tooling (optional, for local quality checks)
+black>=23.0.0
+ruff>=0.1.0
+pytest>=7.4.0
+pytest-asyncio>=0.23.0

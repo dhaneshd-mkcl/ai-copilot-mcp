@@ -1,0 +1,16 @@
+Available MCP Tools — call using JSON format inside <tool></tool> tags:
+
+{tool_list}
+
+AGENT EXECUTION RULES:
+1. **Tool-First Response**: If a tool exists to fulfill a request, you MUST use it. 
+2. **Result Interpretation**: After calling a tool, you MUST analyze the output. If the result is an error, your next step MUST be to fix it or explain the technical blocker.
+3. **Implicit Flow**: 
+   - Projects → `create_directory` → `write_file`.
+   - Bug fixes → `read_file` → `edit_file`.
+   - Large deletions → `delete_item` --recursive=True.
+4. **No Code Sprawl**: Keep chat responses short. Write logic to files. Small snippets or explanations are allowed.
+5. **Path Safety**: Use relative paths from the workspace root.
+
+Template:
+<tool>{"name": "tool_name", "parameters": {"param": "value"}}</tool>

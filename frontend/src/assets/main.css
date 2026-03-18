@@ -1,0 +1,59 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import 'highlight.js/styles/github-dark.css';
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #58a6ff; }
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px;
+}
+.cm-scroller { overflow: auto; }
+
+/* Markdown rendered content */
+.prose-terminal {
+  @apply text-terminal-text leading-relaxed;
+}
+.prose-terminal h1, .prose-terminal h2, .prose-terminal h3 {
+  @apply font-semibold text-terminal-blue mb-2 mt-4;
+}
+.prose-terminal p { @apply mb-3; }
+.prose-terminal code {
+  @apply bg-terminal-surface text-terminal-orange px-1.5 py-0.5 rounded text-sm font-mono;
+}
+.prose-terminal pre {
+  @apply bg-terminal-surface rounded-lg p-4 mb-3 overflow-x-auto;
+}
+.prose-terminal pre code { @apply bg-transparent p-0 text-terminal-text; }
+.prose-terminal ul, .prose-terminal ol { @apply mb-3 ml-4; }
+.prose-terminal li { @apply mb-1; }
+.prose-terminal ul li { @apply list-disc; }
+.prose-terminal ol li { @apply list-decimal; }
+.prose-terminal a { @apply text-terminal-blue underline hover:text-blue-400; }
+.prose-terminal blockquote {
+  @apply border-l-2 border-terminal-blue pl-4 text-terminal-muted italic;
+}
+.prose-terminal strong { @apply text-terminal-text font-semibold; }
+.prose-terminal table { @apply w-full border-collapse mb-3; }
+.prose-terminal th, .prose-terminal td {
+  @apply border border-terminal-border px-3 py-2 text-sm;
+}
+.prose-terminal th { @apply bg-terminal-surface font-semibold; }
+
+/* Animations */
+@keyframes typing {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.typing-cursor::after {
+  content: '▋';
+  animation: typing 1s step-end infinite;
+  color: #58a6ff;
+}
