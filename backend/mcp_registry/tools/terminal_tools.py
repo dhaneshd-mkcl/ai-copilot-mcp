@@ -1,17 +1,16 @@
 """
-terminal_tools.py — Shell execution tools with live streaming output.
-
-Provides:
-  - run_in_terminal: Execute any shell command and capture streaming output.
-  - install_package: Auto-detect pip/npm and install a package.
+terminal_tools.py — Shell execution tools with Windows-safe thread-based execution.
 """
 
 import asyncio
 import logging
 import shutil
 import sys
+import subprocess
+import time
+import platform
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
 
 from mcp_registry.registry import registry
@@ -43,63 +42,71 @@ class InstallOutput(BaseModel):
 
 async def _stream_command(cmd: str, cwd: str = None, timeout: int = 60) -> TerminalOutput:
     """
-    Run a shell command, streaming stdout+stderr and capturing all output.
-    Returns a structured result with combined output.
+    Reliable cross-platform command runner (Windows safe).
+    Uses thread-based execution to avoid Windows asyncio subprocess limitations.
     """
-    import time
-    start = time.monotonic()
+    start = time.time()
 
-    try:
-        proc = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=cwd,
-            shell=True,
-        )
-
+    def execute():
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            proc.kill()
-            elapsed = int((time.monotonic() - start) * 1000)
-            return TerminalOutput(
-                status="error",
-                command=cmd,
-                stdout="",
-                stderr=f"Command timed out after {timeout}s",
-                returncode=-1,
-                duration_ms=elapsed,
-                error=f"Timeout after {timeout}s",
+            process = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace"
             )
 
-        elapsed = int((time.monotonic() - start) * 1000)
-        stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
-        stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
-        ok = proc.returncode == 0
+            stdout, stderr = process.communicate(timeout=timeout)
+            duration = int((time.time() - start) * 1000)
 
-        return TerminalOutput(
-            status="success" if ok else "error",
-            command=cmd,
-            stdout=stdout[:8000],  # Cap output to prevent flooding context
-            stderr=stderr[:2000],
-            returncode=proc.returncode,
-            duration_ms=elapsed,
-            error=stderr[:500] if not ok and stderr else None,
-        )
+            return {
+                "stdout": stdout.strip(),
+                "stderr": stderr.strip(),
+                "returncode": process.returncode,
+                "duration_ms": duration
+            }
 
-    except FileNotFoundError as e:
-        return TerminalOutput(
-            status="error", command=cmd, stdout="", stderr=str(e),
-            returncode=-1, duration_ms=0, error=f"Command not found: {e}"
-        )
-    except Exception as e:
-        return TerminalOutput(
-            status="error", command=cmd, stdout="", stderr=str(e),
-            returncode=-1, duration_ms=0, error=str(e)
-        )
+        except subprocess.TimeoutExpired:
+            process.kill()
+            return {
+                "stdout": "",
+                "stderr": f"Command timed out after {timeout}s",
+                "returncode": -1,
+                "duration_ms": int((time.time() - start) * 1000)
+            }
+        except Exception as e:
+            return {
+                "stdout": "",
+                "stderr": f"Execution error: {str(e)}",
+                "returncode": -1,
+                "duration_ms": 0
+            }
+
+    # Execute in a thread to keep the event loop unblocked
+    result = await asyncio.to_thread(execute)
+
+    logger.info(f"[CMD] {cmd[:100]}...")
+    logger.info(f"[RET] {result['returncode']} ({result['duration_ms']}ms)")
+    if result["stdout"]:
+        logger.debug(f"[OUT] {result['stdout'][:100]}...")
+    if result["stderr"]:
+        logger.error(f"[ERR] {result['stderr'][:200]}...")
+
+    ok = result["returncode"] == 0
+
+    return TerminalOutput(
+        status="success" if ok else "error",
+        command=cmd,
+        stdout=result["stdout"][:8000],
+        stderr=result["stderr"][:2000],
+        returncode=result["returncode"],
+        duration_ms=result["duration_ms"],
+        error=result["stderr"][:500] if not ok and result["stderr"] else None
+    )
 
 
 @registry.register(
@@ -126,7 +133,7 @@ async def _stream_command(cmd: str, cwd: str = None, timeout: int = 60) -> Termi
     timeout=70,
 )
 async def run_command(command: str, cwd: str = ".", timeout: int = 60) -> dict:
-    logger.info(f"tool.run_in_terminal | START cmd='{command[:80]}' cwd='{cwd}'")
+    logger.info(f"tool.run_command | START cmd='{command[:80]}'")
 
     # Resolve working directory within workspace
     try:
@@ -135,41 +142,29 @@ async def run_command(command: str, cwd: str = ".", timeout: int = 60) -> dict:
         resolved_cwd = str(Path(config.ALLOWED_BASE_PATH).resolve())
 
     result = await _stream_command(command, cwd=resolved_cwd, timeout=timeout)
-    logger.info(
-        f"tool.run_in_terminal | DONE returncode={result.returncode} "
-        f"duration={result.duration_ms}ms"
-    )
     return result.model_dump(exclude_none=True)
 
 
 @registry.register(
     name="install_package",
     description=(
-        "Install a Python or Node.js package. Auto-detects the package manager: "
-        "uses 'pip install' for Python packages and 'npm install' for Node.js packages. "
-        "Detects .venv if present and activates it. Dangerous — requires confirmation."
+        "Install a Python or Node.js package. Auto-detects the package manager. "
+        "Supports pip, npm, and yarn. Activated for .venv in the current project."
     ),
     parameters={
-        "package": {
-            "type": "string",
-            "description": "Package name (e.g. 'requests', 'fastapi', 'axios')."
-        },
+        "package": {"type": "string", "description": "Package name."},
         "manager": {
-            "type": "string",
-            "description": "Package manager: 'auto' (default), 'pip', 'npm', 'yarn'.",
+            "type": "string", 
+            "description": "auto (default), pip, npm, yarn.",
             "default": "auto"
         },
-        "cwd": {
-            "type": "string",
-            "description": "Working directory relative to workspace.",
-            "default": "."
-        },
+        "cwd": {"type": "string", "description": "Working directory.", "default": "."},
     },
     category="dangerous",
     timeout=120,
 )
 async def install_package(package: str, manager: str = "auto", cwd: str = ".") -> dict:
-    logger.info(f"tool.install_package | START pkg='{package}' manager='{manager}'")
+    logger.info(f"tool.install_package | START pkg='{package}'")
 
     try:
         resolved_cwd = str(safe_path(cwd))
@@ -178,18 +173,11 @@ async def install_package(package: str, manager: str = "auto", cwd: str = ".") -
 
     cwd_path = Path(resolved_cwd)
 
-    # Auto-detect manager
     if manager == "auto":
-        if (cwd_path / "package.json").exists():
-            manager = "npm"
-        else:
-            manager = "pip"
+        manager = "npm" if (cwd_path / "package.json").exists() else "pip"
 
-    # Build the install command
     if manager == "pip":
-        # Use the current Python interpreter to ensure correct env
-        python_exec = sys.executable
-        cmd = f'"{python_exec}" -m pip install {package}'
+        cmd = f'"{sys.executable}" -m pip install {package}'
     elif manager == "npm":
         cmd = f"npm install {package}"
     elif manager == "yarn":
@@ -198,10 +186,9 @@ async def install_package(package: str, manager: str = "auto", cwd: str = ".") -
         return InstallOutput(
             status="error", package=package, manager=manager,
             stdout="", stderr="", returncode=-1,
-            error=f"Unknown manager '{manager}'. Use: pip, npm, yarn, or auto."
+            error=f"Unknown manager '{manager}'"
         ).model_dump(exclude_none=True)
 
-    logger.info(f"tool.install_package | RUNNING cmd='{cmd}'")
     result = await _stream_command(cmd, cwd=resolved_cwd, timeout=120)
 
     return InstallOutput(
@@ -211,5 +198,5 @@ async def install_package(package: str, manager: str = "auto", cwd: str = ".") -
         stdout=result.stdout,
         stderr=result.stderr,
         returncode=result.returncode,
-        error=result.error,
+        error=result.error
     ).model_dump(exclude_none=True)

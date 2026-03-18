@@ -11,6 +11,7 @@ duckduckgo_search==6.1.7
 
 # MCP (Model Context Protocol) server/client library
 mcp>=1.0.0
+firecrawl-py>=1.1.0
 
 # Dev tooling (optional, for local quality checks)
 black>=23.0.0

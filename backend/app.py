@@ -36,6 +36,7 @@ import mcp_registry.tools.gui_tools
 import mcp_registry.tools.web_tools
 import mcp_registry.tools.terminal_tools  # NEW: Shell execution + package install
 import mcp_registry.tools.debug_tools    # NEW: PDB debugging + API client generator
+import mcp_registry.tools.firecrawl_tools # NEW: Deep web scraping & crawling
 from mcp_registry.resources import workspace_info  # NEW: Hybrid MCP Resource
 from services.mcp_host import mcp_host # NEW: Multi-Server Orchestrator
 

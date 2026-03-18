@@ -32,8 +32,14 @@ class Config:
     VISION_BASE_URL: str = os.getenv("VISION_BASE_URL", "https://chatops.mkcl.org/ollama")
     VISION_API_KEY: str = os.getenv("VISION_API_KEY", "")
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+    FIRECRAWL_API_KEY: str = os.getenv("FIRECRAWL_API_KEY", "")
 
-    ALLOWED_BASE_PATH: str = os.getenv("ALLOWED_BASE_PATH", os.path.dirname(os.getcwd()))
+    # Dynamic Path Resolution
+    BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    ALLOWED_BASE_PATH: str = os.getenv("ALLOWED_BASE_PATH", BASE_DIR)
+    VECTOR_DB_PATH: str = os.getenv("VECTOR_DB_PATH", os.path.join(BASE_DIR, "backend", "vector_db"))
+    
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "10"))
 
     # Workspace Subfolders

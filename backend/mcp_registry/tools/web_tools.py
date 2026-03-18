@@ -444,3 +444,47 @@ async def open_browser_url(url: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"tool.open_browser_url | FAILED error='{str(e)}'")
         return {"status": "error", "message": f"Failed to open browser: {str(e)}", "url": url}
+
+@registry.register(
+    name="web_research",
+    description="Smart web research selector. Uses Tavily for quick answers and general searches. Uses Firecrawl to scrape deep content if a URL is provided or if deep analysis is requested.",
+    parameters={
+        "query": {"type": "string", "description": "The search query, command, or URL to analyze."}
+    },
+    category="safe",
+)
+async def web_research(query: str) -> Dict[str, Any]:
+    """Smart router between Tavily and Firecrawl based on user intent."""
+    logger.info(f"tool.web_research | Analysing query for smart routing: '{query}'")
+    
+    def should_use_firecrawl(q: str) -> tuple[bool, str]:
+        q_lower = q.lower()
+        
+        import re
+        url_match = re.search(r'(https?://[^\s]+|www\.[^\s]+)', q_lower)
+        if url_match:
+            return True, "URL detected"
+        
+        keywords = ["analyze", "summarize", "extract", "read", "deep"]
+        if any(k in q_lower for k in keywords):
+            return True, "Analysis keyword detected"
+            
+        if len(q.split()) > 20:
+            return True, "Long query context length"
+            
+        return False, "Simple query"
+
+    use_scrape, reason = should_use_firecrawl(query)
+    
+    if use_scrape:
+        logger.info(f"[TOOL SELECTED] → firecrawl", extra={"reason": reason})
+        import re
+        url_match = re.search(r'(https?://[^\s]+|www\.[^\s]+)', query.lower())
+        url = url_match.group(0) if url_match else query.strip()
+        
+        from mcp_registry.tools.firecrawl_tools import firecrawl_scrape
+        return await firecrawl_scrape(url, mode="full")
+    else:
+        logger.info(f"[TOOL SELECTED] → tavily", extra={"reason": reason})
+        # Default to 5 max_results
+        return await web_search_tavily(query, max_results=5)
